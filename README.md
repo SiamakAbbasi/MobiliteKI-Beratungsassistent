@@ -32,3 +32,9 @@ For multi-instance production deployment, replace the in-process scheduler/lock 
 ## Verification limits
 
 Langdock analysis cannot be exercised without the user's credentials and model name. Public sources may change URLs, block automated requests, or return unsupported HTML; connection and scan errors are shown on the Sources page.
+
+## Deployment from `develop`
+
+Pushes to `develop` run tests, lint, and the production build in GitHub Actions. When all checks pass, the workflow connects to the VPS and runs `deploy/deploy.sh`. The VPS keeps its own `.env` and SQLite database; neither is stored in Git.
+
+Initial server setup requires the GitHub Actions deploy public key in `/root/.ssh/authorized_keys`, followed by `deploy/bootstrap-vps.sh`. Production runs as two isolated Docker Compose services on a dedicated network. The web application is published on port `3050`; the advisor worker has no public port. Existing reverse proxies and unrelated containers are not modified.

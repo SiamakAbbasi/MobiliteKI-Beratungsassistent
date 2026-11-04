@@ -1,0 +1,43 @@
+services:
+  app:
+    image: mobility-pulse:develop
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+    ports:
+      - "3050:3000"
+    volumes:
+      - ./data/mobility-pulse.db:/app/prisma/mobility-pulse.db
+    networks:
+      - mobility-pulse-network
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/api/dashboard').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 8
+      start_period: 30s
+
+  advisor-worker:
+    image: mobility-pulse:develop
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      NODE_ENV: production
+    command: ["npm", "run", "advisor:worker"]
+    volumes:
+      - ./data/mobility-pulse.db:/app/prisma/mobility-pulse.db
+    networks:
+      - mobility-pulse-network
+    depends_on:
+      app:
+        condition: service_healthy
+
+networks:
+  mobility-pulse-network:
+    name: mobility-pulse-network
+
