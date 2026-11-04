@@ -1,0 +1,5 @@
+import { db } from "../lib/db";
+import { classifyTransportNews } from "../lib/transport-news";
+import { extractGeography } from "../lib/german-geography";
+async function main(){const items=await db.item.findMany({include:{source:true}});let relevant=0,excluded=0,geo=0;for(const item of items){const result=classifyTransportNews(item);const location=extractGeography(`${item.title}\n${item.content}`,item.source.federalState);await db.item.update({where:{id:item.id},data:{transportRelevant:result.relevant,exclusionReason:result.reason,newsCategory:result.category,factualSummary:result.summary,federalState:location.state,district:location.district,city:location.city,latitude:location.latitude,longitude:location.longitude,geographicScope:location.scope,geoConfidence:location.confidence,newsAnalyzedAt:new Date()}});result.relevant?relevant++:excluded++;if(result.relevant&&location.state)geo++;}console.log(JSON.stringify({total:items.length,relevant,excluded,withGeography:geo,withoutGeography:relevant-geo}));}
+main().finally(()=>db.$disconnect());

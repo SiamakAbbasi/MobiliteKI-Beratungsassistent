@@ -1,0 +1,257 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+enum SourceType {
+  RSS
+  API
+  WEBSITE
+  OPARL
+  TED
+}
+
+enum Category {
+  NEWS
+  OPERATIONAL_ISSUE
+  STRATEGIC_ISSUE
+  POLICY_REGULATION
+  BUSINESS_OPPORTUNITY
+}
+
+enum OpportunityMaturity {
+  EARLY_SIGNAL
+  PLANNED_PROJECT
+  ACTIVE_TENDER
+  AWARDED_CLOSED
+}
+
+enum NewsCategory {
+  PUBLIC_TRANSPORT_BUS
+  REGIONAL_RAIL
+  LONG_DISTANCE_RAIL
+  URBAN_RAIL
+  FREIGHT_TRANSPORT
+  INFRASTRUCTURE
+  TARIFFS_TICKETING
+  FINANCING_FUNDING
+  REGULATION_POLICY
+  PROCUREMENT_TENDERS
+  MOBILITY_INNOVATION
+  OPERATIONS_SERVICE
+}
+
+enum ScanStatus {
+  RUNNING
+  COMPLETED
+  FAILED
+}
+
+model Source {
+  id String @id @default(cuid())
+  name String
+  url String @unique
+  type SourceType
+  enabled Boolean @default(true)
+  lastSuccessfulScan DateTime?
+  lastError String?
+  federalState String?
+  regionName String?
+  city String?
+  district String?
+  coverageScope String @default("UNKNOWN")
+  publisherType String @default("OTHER")
+  transportSectorsJson String @default("[]")
+  healthStatus String @default("UNKNOWN")
+  verifiedAt DateTime?
+  minIntervalMinutes Int @default(60)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  items Item[]
+}
+
+model Item {
+  id String @id @default(cuid())
+  sourceId String
+  source Source @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+  canonicalUrl String @unique
+  contentHash String @unique
+  title String
+  content String
+  publishedAt DateTime
+  collectedAt DateTime @default(now())
+  analyzedAt DateTime?
+  relevant Boolean?
+  analysisVersion String?
+  discoveryStatus String @default("PENDING")
+  discoveryError String?
+  transportRelevant Boolean?
+  exclusionReason String?
+  newsCategory NewsCategory?
+  factualSummary String?
+  federalState String?
+  district String?
+  city String?
+  latitude Float?
+  longitude Float?
+  geographicScope String?
+  geoConfidence Float?
+  newsAnalyzedAt DateTime?
+  discovery Discovery?
+  advisorReports AdvisorReport[]
+}
+
+model AdvisorReport {
+  id String @id @default(cuid())
+  itemId String
+  item Item @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  cacheKey String @unique
+  contentHash String
+  profileVersion String
+  promptVersion String
+  model String
+  status String @default("PENDING")
+  startedAt DateTime?
+  completedAt DateTime?
+  leaseExpiresAt DateTime?
+  attemptCount Int @default(0)
+  maxAttempts Int @default(2)
+  reportJson String?
+  executiveSummary String?
+  opportunityPotential String?
+  riskLevel String?
+  companyFit String?
+  maturity String?
+  decision String?
+  qualityScore Int @default(0)
+  qualityRubricJson String?
+  revisionCount Int @default(0)
+  inputTokens Int @default(0)
+  outputTokens Int @default(0)
+  estimatedCost Float @default(0)
+  error String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  messages AdvisorMessage[]
+
+  @@index([itemId, status])
+  @@index([status, createdAt])
+}
+
+model AdvisorMessage {
+  id String @id @default(cuid())
+  reportId String
+  report AdvisorReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  role String
+  content String
+  inputTokens Int @default(0)
+  outputTokens Int @default(0)
+  estimatedCost Float @default(0)
+  createdAt DateTime @default(now())
+
+  @@index([reportId, createdAt])
+}
+
+model Discovery {
+  id String @id @default(cuid())
+  itemId String @unique
+  item Item @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  category Category
+  categoryTagsJson String @default("[]")
+  summary String
+  city String?
+  federalState String?
+  latitude Float?
+  longitude Float?
+  aiExplanation String?
+  relevanceScore Float @default(0)
+  businessOpportunity String?
+  recommendedAction String?
+  evidenceSummary String?
+  potentialCustomer String?
+  maturity OpportunityMaturity @default(EARLY_SIGNAL)
+  confidenceScore Float @default(0)
+  tenderReference String?
+  tenderDeadline DateTime?
+  active Boolean @default(true)
+  analysisVersion String @default("legacy-v1")
+  isAiGenerated Boolean @default(false)
+  createdAt DateTime @default(now())
+  companyMatches CompanyMatch[]
+}
+
+model SourceCandidate {
+  id String @id @default(cuid())
+  name String
+  url String @unique
+  federalState String?
+  publisherType String @default("OTHER")
+  reason String
+  verificationStatus String @default("UNVERIFIED")
+  lastCheckedAt DateTime?
+  lastError String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model CompanyProfile {
+  id String @id @default(cuid())
+  key String @unique
+  name String
+  website String
+  profileVersion String
+  capabilitiesJson String
+  customerTypesJson String
+  industriesJson String
+  sourceUrlsJson String
+  active Boolean @default(true)
+  updatedAt DateTime @updatedAt
+  createdAt DateTime @default(now())
+}
+
+model CompanyMatch {
+  id String @id @default(cuid())
+  discoveryId String
+  discovery Discovery @relation(fields: [discoveryId], references: [id], onDelete: Cascade)
+  companyKey String
+  fitScore Float
+  evidence String
+  servicesJson String
+  recommendedAction String?
+  createdAt DateTime @default(now())
+
+  @@unique([discoveryId, companyKey])
+  @@index([companyKey, fitScore])
+}
+
+model ScanRun {
+  id String @id @default(cuid())
+  status ScanStatus
+  startedAt DateTime @default(now())
+  completedAt DateTime?
+  sourcesProcessed Int @default(0)
+  newItems Int @default(0)
+  analyzedItems Int @default(0)
+  duplicatesDetected Int @default(0)
+  errors Int @default(0)
+  message String?
+}
+
+model AiUsage {
+  id String @id @default(cuid())
+  inputTokens Int
+  outputTokens Int
+  estimatedCost Float
+  model String
+  createdAt DateTime @default(now())
+}
+
+model Setting {
+  key String @id
+  value String
+  updatedAt DateTime @updatedAt
+}
