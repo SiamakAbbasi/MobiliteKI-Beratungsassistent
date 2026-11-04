@@ -1,0 +1,4 @@
+export const bundeslaender=["Baden-Württemberg","Bayern","Berlin","Brandenburg","Bremen","Hamburg","Hessen","Mecklenburg-Vorpommern","Niedersachsen","Nordrhein-Westfalen","Rheinland-Pfalz","Saarland","Sachsen","Sachsen-Anhalt","Schleswig-Holstein","Thüringen"] as const;
+export type Bundesland=(typeof bundeslaender)[number];
+
+export const transportSectorLabels:Record<string,string>={PUBLIC_TRANSPORT_BUS:"ÖPNV / Bus",REGIONAL_RAIL:"SPNV / Regionalverkehr",LONG_DISTANCE_RAIL:"Fernverkehr",URBAN_RAIL:"Straßenbahn / U-Bahn / S-Bahn",FREIGHT_TRANSPORT:"Güterverkehr",INFRASTRUCTURE:"Infrastruktur",TARIFFS_TICKETING:"Tarife / Ticketing",FINANCING_FUNDING:"Finanzierung / Förderung",REGULATION_POLICY:"Regulierung / Politik",PROCUREMENT_TENDERS:"Vergaben / Ausschreibungen",MOBILITY_INNOVATION:"Mobilitätsinnovation",OPERATIONS_SERVICE:"Betrieb / Service"};

@@ -13,6 +13,7 @@
     "db:reanalyze": "tsx scripts/reanalyze-existing.ts",
     "db:reindex-news": "tsx scripts/reindex-news.ts",
     "db:sync-sources": "tsx scripts/sync-source-metadata.ts",
+    "sources:batch1": "tsx scripts/validate-source-batch1.ts",
     "test": "vitest run"
   },
   "dependencies": {

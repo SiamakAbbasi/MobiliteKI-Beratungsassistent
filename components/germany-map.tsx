@@ -1,64 +1,16 @@
 "use client";
-
-import { geoConicConformal, geoPath } from "d3-geo";
-import { useEffect, useMemo, useState } from "react";
-
-type DiscoveryMarker = { id: string; title: string; city?: string | null; latitude?: number | null; longitude?: number | null; category: string };
-type GeoFeatureCollection = GeoJSON.FeatureCollection<GeoJSON.Geometry, Record<string, unknown>>;
-type MapData = { states: GeoFeatureCollection; country: GeoFeatureCollection; attribution: string; attributionUrl: string; licenseUrl: string };
-
-const WIDTH = 400;
-const HEIGHT = 500;
-const colors: Record<string, string> = { BUSINESS_OPPORTUNITY: "#20b75a", OPERATIONAL_ISSUE: "#f5a623", STRATEGIC_ISSUE: "#f5a623", POLICY_REGULATION: "#8058df", NEWS: "#2c6ce6" };
-const cities = [
-  { name: "Hamburg", coordinates: [9.9937, 53.5511] as [number, number], dx: 10, dy: -9 },
-  { name: "Berlin", coordinates: [13.405, 52.52] as [number, number], dx: 10, dy: -8 },
-  { name: "Hannover", coordinates: [9.732, 52.3759] as [number, number], dx: -47, dy: 18 },
-  { name: "Köln", coordinates: [6.9603, 50.9375] as [number, number], dx: 10, dy: 18 },
-  { name: "Düsseldorf", coordinates: [6.7735, 51.2277] as [number, number], dx: -53, dy: -8 },
-  { name: "Frankfurt", coordinates: [8.6821, 50.1109] as [number, number], dx: 10, dy: 19 },
-  { name: "Leipzig", coordinates: [12.3731, 51.3397] as [number, number], dx: 10, dy: 18 },
-  { name: "Stuttgart", coordinates: [9.1829, 48.7758] as [number, number], dx: 10, dy: 20 },
-  { name: "München", coordinates: [11.582, 48.1351] as [number, number], dx: 10, dy: 20 },
-];
-
-export default function GermanyMap({ items, onSelect }: { items: DiscoveryMarker[]; onSelect: (id: string) => void }) {
-  const [data, setData] = useState<MapData | null>(null);
-  const [error, setError] = useState(false);
-
-  useEffect(() => {
-    let active = true;
-    fetch("/api/map").then(async (response) => {
-      if (!response.ok) throw new Error("Karte nicht verfügbar");
-      return response.json();
-    }).then((mapData) => { if (active) setData(mapData); }).catch(() => { if (active) setError(true); });
-    return () => { active = false; };
-  }, []);
-
-  const drawing = useMemo(() => {
-    if (!data) return null;
-    const projection = geoConicConformal().parallels([47, 55]).rotate([-10.4, 0]).fitExtent([[52, 18], [348, 468]], data.country);
-    const path = geoPath(projection);
-    return {
-      countryPath: path(data.country) || "",
-      statePaths: data.states.features.map((feature) => ({ id: String(feature.id ?? feature.properties?.ags ?? feature.properties?.gen), path: path(feature) || "" })),
-      cities: cities.map((city) => ({ ...city, point: projection(city.coordinates) })),
-      markers: items.filter((item) => item.latitude != null && item.longitude != null).map((item) => ({ item, point: projection([item.longitude!, item.latitude!]) })),
-    };
-  }, [data, items]);
-
-  if (error) return <div className="map-status">Die offiziellen Kartendaten des BKG sind vorübergehend nicht verfügbar.</div>;
-  if (!drawing || !data) return <div className="map-status">Offizielle Deutschlandkarte wird geladen…</div>;
-
-  return <div className="germany-map">
-    <svg viewBox={`0 0 ${WIDTH} ${HEIGHT}`} preserveAspectRatio="xMidYMid meet" role="img" aria-label={`Genaue Deutschlandkarte mit ${drawing.markers.length} Fundstellen`}>
-      <defs><filter id="map-shadow" x="-20%" y="-20%" width="140%" height="140%"><feDropShadow dx="0" dy="5" stdDeviation="7" floodColor="#7891b5" floodOpacity=".17"/></filter></defs>
-      <g filter="url(#map-shadow)">{drawing.statePaths.map((state) => <path key={`fill-${state.id}`} d={state.path} className="state-fill"/>)}</g>
-      <g>{drawing.statePaths.map((state) => <path key={`border-${state.id}`} d={state.path} className="state-border"/>)}</g>
-      <path d={drawing.countryPath} className="country-outline"/>
-      {drawing.cities.map((city) => city.point && <text key={city.name} x={city.point[0] + city.dx} y={city.point[1] + city.dy} className="map-city">{city.name}</text>)}
-      {drawing.markers.map(({ item, point }) => point && <g key={item.id} className="map-marker" role="button" tabIndex={0} onClick={() => onSelect(item.id)} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") onSelect(item.id); }}><title>{item.title}</title><circle cx={point[0]} cy={point[1]} r="12" fill={colors[item.category] || colors.NEWS} opacity=".16"/><circle cx={point[0]} cy={point[1]} r="7" fill={colors[item.category] || colors.NEWS} stroke="white" strokeWidth="3"/></g>)}
-    </svg>
-    <div className="map-attribution"><a href={data.attributionUrl} target="_blank" rel="noreferrer">{data.attribution}</a> · <a href={data.licenseUrl} target="_blank" rel="noreferrer">Lizenz</a></div>
-  </div>;
+import {geoCentroid,geoConicConformal,geoPath} from "d3-geo";
+import {useEffect,useMemo,useState} from "react";
+import {resolveKnownMapLocation,stateNames} from "@/lib/map-marker-location";
+type DiscoveryMarker={id:string;title:string;category:string;city?:string|null;federalState?:string|null;latitude?:number|null;longitude?:number|null;publishedAt:string;source:string;item?:{city?:string|null;federalState?:string|null;latitude?:number|null;longitude?:number|null;geographicScope?:string|null}};
+type GeoFeatureCollection=GeoJSON.FeatureCollection<GeoJSON.Geometry,Record<string,unknown>>;type MapData={states:GeoFeatureCollection;country:GeoFeatureCollection;attribution:string;attributionUrl:string;licenseUrl:string};type ResolvedMarker={item:DiscoveryMarker;point:[number,number];region:string;scope:"Ort"|"Bundesland"};
+const WIDTH=400,HEIGHT=500,colors:Record<string,string>={BUSINESS_OPPORTUNITY:"#20b75a",OPERATIONAL_ISSUE:"#f5a623",STRATEGIC_ISSUE:"#f5a623",POLICY_REGULATION:"#8058df",NEWS:"#2c6ce6"},labels:Record<string,string>={BUSINESS_OPPORTUNITY:"Beratungspotenzial",OPERATIONAL_ISSUE:"Betriebliches Problem",STRATEGIC_ISSUE:"Strategisches Thema",POLICY_REGULATION:"Politik & Regulierung",NEWS:"Nachricht"};
+const cities=[{name:"Hamburg",coordinates:[9.9937,53.5511] as [number,number],dx:10,dy:-9},{name:"Berlin",coordinates:[13.405,52.52] as [number,number],dx:10,dy:-8},{name:"Hannover",coordinates:[9.732,52.3759] as [number,number],dx:-47,dy:18},{name:"Köln",coordinates:[6.9603,50.9375] as [number,number],dx:10,dy:18},{name:"Düsseldorf",coordinates:[6.7735,51.2277] as [number,number],dx:-53,dy:-8},{name:"Frankfurt",coordinates:[8.6821,50.1109] as [number,number],dx:10,dy:19},{name:"Leipzig",coordinates:[12.3731,51.3397] as [number,number],dx:10,dy:18},{name:"Stuttgart",coordinates:[9.1829,48.7758] as [number,number],dx:10,dy:20},{name:"München",coordinates:[11.582,48.1351] as [number,number],dx:10,dy:20}];
+export default function GermanyMap({items,onSelect}:{items:DiscoveryMarker[];onSelect:(id:string)=>void}){
+ const [data,setData]=useState<MapData|null>(null),[error,setError]=useState(false),[openGroup,setOpenGroup]=useState<string|null>(null);
+ useEffect(()=>{let active=true;fetch("/api/map").then(async response=>{if(!response.ok)throw new Error();return response.json()}).then(value=>{if(active)setData(value)}).catch(()=>{if(active)setError(true)});return()=>{active=false}},[]);
+ const drawing=useMemo(()=>{if(!data)return null;const projection=geoConicConformal().parallels([47,55]).rotate([-10.4,0]).fitExtent([[52,18],[348,468]],data.country),path=geoPath(projection),stateFeatures=new Map(data.states.features.map(feature=>[String(feature.properties?.gen),feature]));const markers=items.flatMap<ResolvedMarker>(item=>{const known=resolveKnownMapLocation(item),point=known&&projection([known.longitude,known.latitude]);if(known&&point)return[{item,point:point as [number,number],region:known.label,scope:known.scope}];const state=stateNames(item.federalState||item.item?.federalState)[0],feature=state&&stateFeatures.get(state),center=feature&&projection(geoCentroid(feature));return feature&&center?[{item,point:center as [number,number],region:state,scope:"Bundesland"}]:[]});const groups=new Map<string,ResolvedMarker[]>();for(const marker of markers){const key=`${Math.round(marker.point[0])}:${Math.round(marker.point[1])}`;groups.set(key,[...(groups.get(key)||[]),marker])}return{countryPath:path(data.country)||"",statePaths:data.states.features.map(feature=>({id:String(feature.id??feature.properties?.ags??feature.properties?.gen),path:path(feature)||""})),cities:cities.map(city=>({...city,point:projection(city.coordinates)})),markers,groups:[...groups.entries()].map(([key,entries])=>({key,entries,point:entries[0].point}))}},[data,items]);
+ if(error)return <div className="map-status">Die offiziellen Kartendaten des BKG sind vorübergehend nicht verfügbar.</div>;if(!drawing||!data)return <div className="map-status">Offizielle Deutschlandkarte wird geladen…</div>;
+ const counts=drawing.markers.reduce<Record<string,number>>((result,marker)=>{result[marker.item.category]=(result[marker.item.category]||0)+1;return result},{}),activeGroup=drawing.groups.find(group=>group.key===openGroup);
+ return <div className="germany-map"><svg viewBox={`0 0 ${WIDTH} ${HEIGHT}`} preserveAspectRatio="xMidYMid meet" role="img" aria-label={`Genaue Deutschlandkarte mit ${drawing.markers.length} geografisch zugeordneten Meldungen`}><defs><filter id="map-shadow" x="-20%" y="-20%" width="140%" height="140%"><feDropShadow dx="0" dy="5" stdDeviation="7" floodColor="#7891b5" floodOpacity=".17"/></filter><filter id="marker-shadow" x="-80%" y="-80%" width="260%" height="260%"><feDropShadow dx="0" dy="2" stdDeviation="2" floodColor="#18233a" floodOpacity=".28"/></filter></defs><g filter="url(#map-shadow)">{drawing.statePaths.map(state=><path key={`fill-${state.id}`} d={state.path} className="state-fill"/>)}</g><g>{drawing.statePaths.map(state=><path key={`border-${state.id}`} d={state.path} className="state-border"/>)}</g><path d={drawing.countryPath} className="country-outline"/>{drawing.cities.map(city=>city.point&&<text key={city.name} x={city.point[0]+city.dx} y={city.point[1]+city.dy} className="map-city">{city.name}</text>)}{drawing.groups.map(group=>{const primary=group.entries[0],color=colors[primary.item.category]||colors.NEWS;return <g key={group.key} className="map-marker" role="button" tabIndex={0} aria-label={`${group.entries.length} Meldung${group.entries.length===1?"":"en"} in ${primary.region}`} onClick={()=>group.entries.length===1?onSelect(primary.item.id):setOpenGroup(openGroup===group.key?null:group.key)} onKeyDown={event=>{if(event.key==="Enter"||event.key===" ")group.entries.length===1?onSelect(primary.item.id):setOpenGroup(group.key)}}><title>{group.entries.length===1?primary.item.title:`${group.entries.length} Meldungen in ${primary.region}`}</title><circle cx={group.point[0]} cy={group.point[1]} r="13" fill={color} opacity=".16"/><circle cx={group.point[0]} cy={group.point[1]} r={group.entries.length>1?8:7} fill={color} stroke="white" strokeWidth="3" filter="url(#marker-shadow)"/>{group.entries.length>1&&<text x={group.point[0]} y={group.point[1]+3} className="marker-count">{group.entries.length}</text>}</g>})}</svg>{!drawing.markers.length&&<div className="map-empty">Für die aktuellen Filter sind keine geografisch zugeordneten Meldungen verfügbar.</div>}{activeGroup&&<div className="map-group-picker"><b>Meldung auswählen</b>{activeGroup.entries.map(marker=><button key={marker.item.id} onClick={()=>onSelect(marker.item.id)}><span style={{background:colors[marker.item.category]||colors.NEWS}}/><div><strong>{marker.item.title}</strong><small>{labels[marker.item.category]} · {marker.region} ({marker.scope}) · {new Date(marker.item.publishedAt).toLocaleDateString("de-DE")} · {marker.item.source}</small></div></button>)}</div>}<div className="map-marker-legend"><span><i className="dot green"/>Chancen ({counts.BUSINESS_OPPORTUNITY||0})</span><span><i className="dot orange"/>Probleme ({(counts.OPERATIONAL_ISSUE||0)+(counts.STRATEGIC_ISSUE||0)})</span><span><i className="dot purple"/>Politik ({counts.POLICY_REGULATION||0})</span><span><i className="dot blue"/>Nachrichten ({counts.NEWS||0})</span></div><div className="map-attribution"><a href={data.attributionUrl} target="_blank" rel="noreferrer">{data.attribution}</a> · <a href={data.licenseUrl} target="_blank" rel="noreferrer">Lizenz</a></div></div>;
 }

@@ -9,7 +9,7 @@ export async function GET(request:NextRequest){
   const where:Prisma.ItemWhereInput={transportRelevant:true,...(query?{OR:[{title:{contains:query}},{content:{contains:query}},{factualSummary:{contains:query}}]}:{}),...(state?{federalState:state}:{}),...(city?{OR:[{city:{contains:city}},{district:{contains:city}}]}:{}),...(publisher?{source:{name:publisher}}:{}),...(sector?{newsCategory:sector}:{}),...((dateFrom||dateTo)?{publishedAt:{...(dateFrom?{gte:new Date(dateFrom)}:{}),...(dateTo?{lte:new Date(`${dateTo}T23:59:59.999Z`)}:{})}}:{})};
   const orderBy:Prisma.ItemOrderByWithRelationInput[]=sort==="relevance"?[{discovery:{relevanceScore:"desc"}},{publishedAt:"desc"}]:[{publishedAt:"desc"},{collectedAt:"desc"}];
   const [items,total,states,cities,publishers]=await Promise.all([
-    db.item.findMany({where,include:{source:{select:{id:true,name:true,type:true}},discovery:{select:{id:true,category:true,relevanceScore:true,active:true}}},orderBy,skip:(page-1)*pageSize,take:pageSize}),
+    db.item.findMany({where,include:{source:{select:{id:true,name:true,type:true}},discovery:{select:{id:true,category:true,relevanceScore:true,active:true}},advisorReports:{select:{status:true,createdAt:true,updatedAt:true},orderBy:[{updatedAt:"desc"},{createdAt:"desc"}],take:1}},orderBy,skip:(page-1)*pageSize,take:pageSize}),
     db.item.count({where}),
     db.item.findMany({where:{transportRelevant:true,federalState:{not:null}},select:{federalState:true},distinct:["federalState"]}),
     db.item.findMany({where:{transportRelevant:true,city:{not:null}},select:{city:true},distinct:["city"]}),
