@@ -65,6 +65,11 @@ model Source {
   district String?
   coverageScope String @default("UNKNOWN")
   publisherType String @default("OTHER")
+  legalStatus String @default("UNKNOWN")
+  licenseName String?
+  termsUrl String?
+  legalReviewedAt DateTime?
+  legalNotes String?
   transportSectorsJson String @default("[]")
   healthStatus String @default("UNKNOWN")
   verifiedAt DateTime?
@@ -72,6 +77,7 @@ model Source {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   items Item[]
+  itemReferences ItemSourceReference[]
 }
 
 model Item {
@@ -103,6 +109,22 @@ model Item {
   newsAnalyzedAt DateTime?
   discovery Discovery?
   advisorReports AdvisorReport[]
+  sourceReferences ItemSourceReference[]
+}
+
+model ItemSourceReference {
+  id String @id @default(cuid())
+  itemId String
+  item Item @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  sourceId String
+  source Source @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+  canonicalUrl String @unique
+  title String
+  publishedAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([itemId, publishedAt])
+  @@index([sourceId])
 }
 
 model AdvisorReport {

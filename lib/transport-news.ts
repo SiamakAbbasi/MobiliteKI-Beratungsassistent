@@ -4,6 +4,7 @@ const warehouse=/lagerhalle|lagerhaus|warehouse|warehousing|fulfillment|fulfilme
 const directFreightImpact=/intermodal|güterterminal|freight terminal|kombinierter verkehr|güterverkehrsnetz|rail freight|schienengüter|hafenhinterland|transport corridor/i;
 const incidentalProcurement=/speisentransport|lebensmitteltransport|feuerwehrfahrzeug|feuerwehrtechnisch|hauptsammler|abwasser|kanalbau|betonshelter|möbeltransport|umzugsdienst|kurierdienst|postdienst/i;
 const transport=/öpnv|oepnv|spnv|personenverkehr|nahverkehr|fernverkehr|regionalbahn|eisenbahn|schienenverkehr|bahnstrecke|bahnhof|buslinie|linienbus|straßenbahn|tram|u-bahn|s-bahn|deutschlandticket|fahrgast|verkehrsverbund|verkehrsbetrieb|mobilitätsdienst|güterverkehr|straßengüter|lkw-verkehr|rail freight|transport network|verkehrsinfrastruktur|verkehrspolitik|transport policy|fahrplan|zugverkehr|verkehrsleistung|verkehr|autobahn|bundesstraße|landesstraße|radweg|wasserstraße|schifffahrt|hafen/i;
+const germanyScope=/deutschland|deutsch|bundesregierung|bundestag|bundesverkehrsminister|deutsche bahn|deutschlandticket|baden-württemberg|bayern|berlin|brandenburg|bremen|hamburg|hessen|mecklenburg-vorpommern|niedersachsen|nordrhein-westfalen|rheinland-pfalz|saarland|sachsen(?:-anhalt)?|schleswig-holstein|thüringen|köln|münchen|frankfurt|düsseldorf|hannover|leipzig|stuttgart|dortmund|essen|dresden|nürnberg/i;
 
 const categories:Array<[TransportNewsCategory,RegExp]>=[
   ["PROCUREMENT_TENDERS",/ausschreibung|vergabe|tender|procurement|ted|dienstleistungsauftrag/i],
@@ -28,4 +29,10 @@ export function classifyTransportNews(input:{title:string;content:string}){
   const category=categories.find(([,pattern])=>pattern.test(text))?.[0]??"INFRASTRUCTURE";
   const firstSentence=(input.content.replace(/\s+/g," ").trim().match(/^.{1,360}?(?:[.!?](?:\s|$)|$)/)?.[0]||input.content.slice(0,360)).trim();
   return {relevant:true,category,reason:null,summary:firstSentence||input.title};
+}
+
+export function shouldCollectBeforeStorage(publisherType:string,input:{title:string;content:string}){
+  if(publisherType!=="GENERAL_NEWS_MEDIA")return true;
+  const text=`${input.title}\n${input.content}`;
+  return germanyScope.test(text)&&classifyTransportNews(input).relevant;
 }

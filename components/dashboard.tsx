@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import Link from "next/link";
 import {
   Area,
   AreaChart,
@@ -45,6 +45,7 @@ import {
 } from "lucide-react";
 import GermanyMap from "./germany-map";
 import ProductGuide from "./product-guide";
+import LogoutButton from "./logout-button";
 import { consultationAction } from "@/lib/advisor-status";
 import {
   categoryContext,
@@ -60,6 +61,14 @@ type Source = {
   enabled: boolean;
   lastSuccessfulScan?: string;
   lastError?: string;
+  publisherType?: string;
+};
+type SourceReference = {
+  id: string;
+  canonicalUrl: string;
+  title: string;
+  publishedAt: string;
+  source: Source;
 };
 type CoverageReport = {
   totalActiveSources: number;
@@ -123,6 +132,7 @@ type Discovery = {
     canonicalUrl: string;
     publishedAt: string;
     source: Source;
+    sourceReferences: SourceReference[];
     advisorReports: AdvisorState[];
   };
 };
@@ -159,6 +169,7 @@ type RawItem = {
   relevant?: boolean | null;
   analysisStatus: "PENDING" | "EXCLUDED" | "DISCOVERY" | "ANALYZED";
   source: { id: string; name: string; type: string };
+  sourceReferences: SourceReference[];
   discovery?: { id: string; category: string; relevanceScore: number } | null;
 };
 type NewsItem = {
@@ -174,6 +185,7 @@ type NewsItem = {
   latitude?: number;
   longitude?: number;
   source: { id: string; name: string; type: string };
+  sourceReferences: SourceReference[];
   discovery?: {
     id: string;
     category: string;
@@ -183,14 +195,49 @@ type NewsItem = {
   advisorReports: AdvisorState[];
 };
 const nav = [
-  { id: "overview", label: "Übersicht", icon: LayoutDashboard },
-  { id: "discoveries", label: "KI-Erkenntnisse", icon: Lightbulb },
-  { id: "consultations", label: "Meine Beratungen", icon: MessageSquareText },
-  { id: "news", label: "Verkehrsnachrichten", icon: Newspaper },
-  { id: "collected", label: "Erfasste Meldungen", icon: FileText },
-  { id: "sources", label: "Quellen", icon: Layers3 },
-  { id: "settings", label: "Einstellungen", icon: Settings },
-  { id: "guide", label: "Produkt & Leitfaden", icon: BookOpen },
+  {
+    id: "overview",
+    href: "/?view=overview",
+    label: "Übersicht",
+    icon: LayoutDashboard,
+  },
+  {
+    id: "discoveries",
+    href: "/?view=discoveries",
+    label: "KI-Erkenntnisse",
+    icon: Lightbulb,
+  },
+  {
+    id: "consultations",
+    href: "/beratungen",
+    label: "Meine Beratungen",
+    icon: MessageSquareText,
+  },
+  {
+    id: "news",
+    href: "/?view=news",
+    label: "Verkehrsnachrichten",
+    icon: Newspaper,
+  },
+  {
+    id: "collected",
+    href: "/?view=collected",
+    label: "Erfasste Meldungen",
+    icon: FileText,
+  },
+  { id: "sources", href: "/?view=sources", label: "Quellen", icon: Layers3 },
+  {
+    id: "settings",
+    href: "/?view=settings",
+    label: "Einstellungen",
+    icon: Settings,
+  },
+  {
+    id: "guide",
+    href: "/leitfaden",
+    label: "Produkt & Leitfaden",
+    icon: BookOpen,
+  },
 ];
 const info: Record<string, { label: string; color: string; icon: any }> = {
   NEWS: { label: "Nachricht", color: "blue", icon: FileText },
@@ -231,7 +278,6 @@ const rel = (d: string) => {
 export default function Dashboard({
   initialPage,
 }: { initialPage?: string } = {}) {
-  const router = useRouter();
   const [data, setData] = useState<Data | null>(null),
     [page, setPage] = useState(() => {
       if (initialPage) return initialPage;
@@ -348,34 +394,21 @@ export default function Dashboard({
           </div>
         </div>
         <nav>
-          {nav.map((n) =>
-            n.id === "consultations" || n.id === "guide" ? (
-              <a
-                key={n.id}
-                href={n.id === "guide" ? "/leitfaden" : "/beratungen"}
-                className={page === n.id ? "active" : ""}
-              >
-                <n.icon />
-                <span>{n.label}</span>
-              </a>
-            ) : (
-              <button
-                key={n.id}
-                className={page === n.id ? "active" : ""}
-                onClick={() => {
-                  if (window.location.pathname !== "/") {
-                    router.push(`/?view=${n.id}`);
-                    return;
-                  }
-                  setPage(n.id);
-                  setMobile(false);
-                }}
-              >
-                <n.icon />
-                <span>{n.label}</span>
-              </button>
-            ),
-          )}
+          {nav.map((n) => (
+            <Link
+              key={n.id}
+              href={n.href}
+              className={page === n.id ? "active" : ""}
+              aria-current={page === n.id ? "page" : undefined}
+              onClick={() => {
+                setPage(n.id);
+                setMobile(false);
+              }}
+            >
+              <n.icon />
+              <span>{n.label}</span>
+            </Link>
+          ))}
         </nav>
         <div className="usage">
           <div>
@@ -412,7 +445,21 @@ export default function Dashboard({
             />
           </div>
           <Bell className="bell" />
-          <div className="avatar">MP</div>
+          <details className="profile-menu">
+            <summary className="avatar" aria-label="Profilmenü öffnen">
+              MP
+            </summary>
+            <div className="profile-popover">
+              <div className="profile-identity">
+                <span className="avatar small">MP</span>
+                <span>
+                  <b>Demo-Zugang</b>
+                  <small>Mobility Pulse AI</small>
+                </span>
+              </div>
+              <LogoutButton variant="menu" />
+            </div>
+          </details>
         </header>
         {page === "overview" && (
           <div className="content">
@@ -997,6 +1044,11 @@ function TransportNewsPage({ query }: { query: string }) {
                     {newsLabels[item.newsCategory] || item.newsCategory}
                   </span>
                   <span>{item.source.name}</span>
+                  {item.sourceReferences.length > 1 && (
+                    <span className="multi-source-badge">
+                      {item.sourceReferences.length} Quellen · ein Thema
+                    </span>
+                  )}
                   {item.discovery?.active && (
                     <span className="intelligence-link">
                       KI-Erkenntnis ·{" "}
@@ -1031,6 +1083,23 @@ function TransportNewsPage({ query }: { query: string }) {
                     <ExternalLink />
                     Originalquelle
                   </a>
+                  {item.sourceReferences.length > 1 && (
+                    <details className="news-source-menu">
+                      <summary>Alle Quellen</summary>
+                      <div>
+                        {item.sourceReferences.map((reference) => (
+                          <a
+                            key={reference.id}
+                            href={reference.canonicalUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                          >
+                            <ExternalLink /> {reference.source.name}
+                          </a>
+                        ))}
+                      </div>
+                    </details>
+                  )}
                 </footer>
               </article>
             );
@@ -1429,7 +1498,7 @@ function QuellenPage({
   busy: boolean;
 }) {
   const [show, setShow] = useState(false),
-    [form, setForm] = useState({ name: "", url: "", type: "" }),
+    [form, setForm] = useState({ name: "", url: "", type: "", publisherType: "OTHER" }),
     [message, setMessage] = useState(""),
     [coverage, setCoverage] = useState<CoverageReport | null>(null);
   useEffect(() => {
@@ -1447,7 +1516,7 @@ function QuellenPage({
     const j = await r.json();
     if (!r.ok) return setMessage(j.error);
     setShow(false);
-    setForm({ name: "", url: "", type: "" });
+    setForm({ name: "", url: "", type: "", publisherType: "OTHER" });
     refresh();
   };
   const toggle = async (s: Source) => {
@@ -1559,12 +1628,18 @@ function QuellenPage({
           </div>
         </section>
       )}
+      <div className="source-class-summary">
+        <span><b>{sources.filter((s) => s.publisherType === "SPECIALIST_MEDIA").length}</b>Fachmedien</span>
+        <span><b>{sources.filter((s) => s.publisherType === "GENERAL_NEWS_MEDIA").length}</b>Allgemeine Nachrichtenmedien</span>
+        <small>Allgemeine Medien werden vor der Speicherung auf Verkehrsrelevanz geprüft.</small>
+      </div>
       <div className="panel table-wrap">
         <table>
           <thead>
             <tr>
               <th>Quelle</th>
               <th>Typ</th>
+              <th>Medienklasse</th>
               <th>Status</th>
               <th>Letzter erfolgreicher Scan</th>
               <th>Fehler</th>
@@ -1582,6 +1657,15 @@ function QuellenPage({
                 </td>
                 <td>
                   <span className="pill">{s.type}</span>
+                </td>
+                <td>
+                  <span className="pill media-class">
+                    {s.publisherType === "GENERAL_NEWS_MEDIA"
+                      ? "Allgemeines Nachrichtenmedium"
+                      : s.publisherType === "SPECIALIST_MEDIA"
+                        ? "Fachmedium"
+                        : "Institutionelle Quelle"}
+                  </span>
                 </td>
                 <td>
                   <button
@@ -1666,6 +1750,14 @@ function QuellenPage({
                 <option>API</option>
                 <option>OPARL</option>
                 <option>TED</option>
+              </select>
+            </label>
+            <label>
+              Medienklasse
+              <select value={form.publisherType} onChange={(e) => setForm({ ...form, publisherType: e.target.value })}>
+                <option value="OTHER">Institutionelle Quelle</option>
+                <option value="SPECIALIST_MEDIA">Fachmedium</option>
+                <option value="GENERAL_NEWS_MEDIA">Allgemeines Nachrichtenmedium</option>
               </select>
             </label>
             {message && <p className="error">{message}</p>}
@@ -1771,6 +1863,17 @@ function Detail({ d, close }: { d: Discovery; close: () => void }) {
     keyPoints = factualKeyPoints(d.item.content, d.item.title, summary),
     advisorComplete = d.item.advisorReports?.[0]?.status === "COMPLETED",
     storedArticleText = d.item.content.trim(),
+    articleSources = d.item.sourceReferences?.length
+      ? d.item.sourceReferences
+      : [
+          {
+            id: d.item.canonicalUrl,
+            canonicalUrl: d.item.canonicalUrl,
+            title: d.item.title,
+            publishedAt: d.item.publishedAt,
+            source: d.item.source,
+          },
+        ],
     storedTextIsExcerpt =
       storedArticleText.length < 600 ||
       /(?:…|\.\.\.)\s*$/.test(storedArticleText);
@@ -1947,19 +2050,26 @@ function Detail({ d, close }: { d: Discovery; close: () => void }) {
         </details>
         <section className="detail-actions">
           <div>
-            <h3>Originalquelle</h3>
-            <p>{d.item.source.name}</p>
+            <h3>{articleSources.length > 1 ? "Quellen zum Thema" : "Originalquelle"}</h3>
+            <p>
+              {articleSources.length > 1
+                ? `${articleSources.length} Veröffentlichungen wurden als ein gemeinsames Nachrichtenthema erkannt.`
+                : d.item.source.name}
+            </p>
           </div>
-          <div>
-            <a
-              className="primary source-link"
-              href={d.item.canonicalUrl}
-              target="_blank"
-              rel="noreferrer"
-            >
-              <ExternalLink />
-              Originalquelle öffnen
-            </a>
+          <div className="detail-source-links">
+            {articleSources.map((reference, index) => (
+              <a
+                className={index === 0 ? "primary source-link" : "secondary-source-link"}
+                href={reference.canonicalUrl}
+                target="_blank"
+                rel="noreferrer"
+                key={reference.id}
+              >
+                <ExternalLink />
+                {reference.source.name}
+              </a>
+            ))}
             <a
               className={`advisor-button ${advisorComplete ? "saved" : "new"}`}
               href={`/news/${d.item.id}/advisor`}

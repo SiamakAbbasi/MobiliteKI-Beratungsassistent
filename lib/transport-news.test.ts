@@ -1,5 +1,5 @@
 import {describe,expect,it} from "vitest";
-import {classifyTransportNews} from "./transport-news";
+import {classifyTransportNews,shouldCollectBeforeStorage} from "./transport-news";
 const classify=(title:string,content:string)=>classifyTransportNews({title,content});
 describe("transport news classification",()=>{
   it("keeps legitimate public transport news",()=>{expect(classify("Neuer Fahrplan","Der ÖPNV erweitert zwei Buslinien.").relevant).toBe(true)});
@@ -10,4 +10,8 @@ describe("transport news classification",()=>{
   it("does not include generic supply-chain content",()=>{expect(classify("Supply Chain Trends","Neue Prozesse im inventory management.").relevant).toBe(false)});
   it("excludes incidental goods transport tenders",()=>{expect(classify("Speisentransporte","Ausschreibung für Straßentransport zur Essensverteilung.").relevant).toBe(false)});
   it("excludes unrelated utility engineering",()=>{expect(classify("Aufdimensionierung Hauptsammler","Ingenieurleistungen in der Eisenbahnstraße für den Abwasserkanal.").relevant).toBe(false)});
+  it("keeps transport-policy interviews from general media",()=>{expect(shouldCollectBeforeStorage("GENERAL_NEWS_MEDIA",{title:"Interview mit dem Verkehrsminister",content:"Im Gespräch erläutert er die Zukunft des Deutschlandtickets und die Finanzierung des ÖPNV."})).toBe(true)});
+  it("rejects unrelated general-media interviews before storage",()=>{expect(shouldCollectBeforeStorage("GENERAL_NEWS_MEDIA",{title:"Interview zur Kulturpolitik",content:"Die Ministerin spricht über Museen und Theater."})).toBe(false)});
+  it("rejects foreign transport news without a German connection",()=>{expect(shouldCollectBeforeStorage("GENERAL_NEWS_MEDIA",{title:"Neue Bahnstrecke in Spanien",content:"Der Fernverkehr zwischen Madrid und Valencia wird ausgebaut."})).toBe(false)});
+  it("does not prefilter specialist sources",()=>{expect(shouldCollectBeforeStorage("SPECIALIST_MEDIA",{title:"Branchenmeldung",content:"Kurzer Fachbeitrag."})).toBe(true)});
 });

@@ -5,13 +5,14 @@ import { analyzeItem } from "./ai";
 import { canonicalize, hash } from "./utils";
 import { ANALYSIS_VERSION } from "./company-profiles";
 import { syncCompanyProfiles } from "./company-profile-store";
-import { classifyTransportNews } from "./transport-news";
+import { classifyTransportNews, shouldCollectBeforeStorage } from "./transport-news";
 import { extractGeography } from "./german-geography";
 
 const parser = new Parser();
 let scanning = false;
 export const normalizeTitle=(title:string)=>title.toLocaleLowerCase("de-DE").normalize("NFKD").replace(/[^a-z0-9äöüß ]/gi," ").replace(/\s+/g," ").trim();
 export function titleSimilarity(a:string,b:string){const left=new Set(normalizeTitle(a).split(" ").filter(x=>x.length>2)),right=new Set(normalizeTitle(b).split(" ").filter(x=>x.length>2));if(!left.size||!right.size)return 0;const common=[...left].filter(x=>right.has(x)).length,min=Math.min(left.size,right.size),max=Math.max(left.size,right.size);return min>=5&&common===min?1:common/max;}
+export function isSameNewsTopic(a:string,b:string){const left=new Set(normalizeTitle(a).split(" ").filter(x=>x.length>3)),right=new Set(normalizeTitle(b).split(" ").filter(x=>x.length>3));const common=[...left].filter(x=>right.has(x)).length;return titleSimilarity(a,b)>=.72||(common>=4&&common/Math.min(left.size,right.size)>=.6);}
 export async function scan(sourceId?: string) {
   if (scanning) throw new Error("A scan is already running");
   scanning = true;
@@ -55,11 +56,12 @@ export async function scan(sourceId?: string) {
           entries.push({ title, link:source.url, content, date:new Date() });
         } else throw new Error(`${source.type} scanning requires endpoint-specific configuration`);
         for (const e of entries) {
+          if(!shouldCollectBeforeStorage(source.publisherType,e))continue;
           const url=canonicalize(e.link), contentHash=hash(`${e.title}\n${e.content}`);
           let existing=await db.item.findFirst({ where:{ OR:[{canonicalUrl:url},{contentHash}] } });
-          if(!existing){const nearby=await db.item.findMany({where:{publishedAt:{gte:new Date(e.date.getTime()-2*86400000),lte:new Date(e.date.getTime()+2*86400000)}},orderBy:{publishedAt:"desc"},take:150});existing=nearby.find(x=>titleSimilarity(x.title,e.title)>=.92)||null;}
-          if(existing){duplicatesDetected++;try{await analyzeStoredItem(existing,source.federalState);}catch(err){await db.source.update({where:{id:source.id},data:{lastError:`AI: ${err instanceof Error?err.message:"Unknown"}`}});}continue;}
-          const item=await db.item.create({ data:{sourceId:source.id,canonicalUrl:url,contentHash,title:e.title,content:e.content,publishedAt:e.date} }); newItems++;
+          if(!existing){const nearby=await db.item.findMany({where:{publishedAt:{gte:new Date(e.date.getTime()-2*86400000),lte:new Date(e.date.getTime()+2*86400000)}},orderBy:{publishedAt:"desc"},take:150});existing=nearby.find(x=>isSameNewsTopic(x.title,e.title))||null;}
+          if(existing){duplicatesDetected++;await db.itemSourceReference.upsert({where:{canonicalUrl:url},update:{itemId:existing.id,sourceId:source.id,title:e.title,publishedAt:e.date},create:{itemId:existing.id,sourceId:source.id,canonicalUrl:url,title:e.title,publishedAt:e.date}});try{await analyzeStoredItem(existing,source.federalState);}catch(err){await db.source.update({where:{id:source.id},data:{lastError:`AI: ${err instanceof Error?err.message:"Unknown"}`}});}continue;}
+          const item=await db.item.create({ data:{sourceId:source.id,canonicalUrl:url,contentHash,title:e.title,content:e.content,publishedAt:e.date,sourceReferences:{create:{sourceId:source.id,canonicalUrl:url,title:e.title,publishedAt:e.date}}} }); newItems++;
           try { await analyzeStoredItem(item,source.federalState); } catch(err){ await db.source.update({where:{id:source.id},data:{lastError:`AI: ${err instanceof Error?err.message:"Unknown"}`}}); }
         }
         await db.source.update({where:{id:source.id},data:{lastSuccessfulScan:new Date(),lastError:null}}); processed++;

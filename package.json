@@ -14,6 +14,10 @@
     "db:reindex-news": "tsx scripts/reindex-news.ts",
     "db:sync-sources": "tsx scripts/sync-source-metadata.ts",
     "sources:batch1": "tsx scripts/validate-source-batch1.ts",
+    "sources:general-media": "tsx scripts/sync-general-media.ts",
+    "sources:approved-public": "tsx scripts/sync-approved-public-sources.ts",
+    "scan:approved:dry": "tsx scripts/dry-run-approved-sources.ts",
+    "db:backfill-source-references": "tsx scripts/backfill-item-source-references.ts",
     "test": "vitest run"
   },
   "dependencies": {
