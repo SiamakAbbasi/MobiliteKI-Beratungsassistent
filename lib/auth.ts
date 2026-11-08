@@ -126,9 +126,12 @@ export async function verifySessionToken(token?: string | null) {
 }
 
 export function sessionCookieOptions() {
+  const secureCookie =
+    process.env.NODE_ENV === "production" &&
+    process.env.MOBILITY_AUTH_SECURE_COOKIE !== "false";
   return {
     httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
+    secure: secureCookie,
     sameSite: "lax" as const,
     path: "/",
     maxAge: SESSION_MAX_AGE_SECONDS,

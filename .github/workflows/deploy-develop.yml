@@ -40,6 +40,31 @@ jobs:
           printf '%s\n' "$VPS_SSH_PRIVATE_KEY" > ~/.ssh/mobility_pulse
           chmod 600 ~/.ssh/mobility_pulse
           ssh-keyscan -H "$VPS_HOST" >> ~/.ssh/known_hosts
+      - name: Configure demo authentication
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+          MOBILITY_AUTH_USERNAME: ${{ secrets.MOBILITY_AUTH_USERNAME }}
+          MOBILITY_AUTH_PASSWORD: ${{ secrets.MOBILITY_AUTH_PASSWORD }}
+          MOBILITY_AUTH_SECRET: ${{ secrets.MOBILITY_AUTH_SECRET }}
+        run: |
+          test -n "$MOBILITY_AUTH_USERNAME"
+          test -n "$MOBILITY_AUTH_PASSWORD"
+          test "${#MOBILITY_AUTH_SECRET}" -ge 32
+          {
+            printf 'MOBILITY_AUTH_USERNAME=%s\n' "$MOBILITY_AUTH_USERNAME"
+            printf 'MOBILITY_AUTH_PASSWORD=%s\n' "$MOBILITY_AUTH_PASSWORD"
+            printf 'MOBILITY_AUTH_SECRET=%s\n' "$MOBILITY_AUTH_SECRET"
+            printf 'MOBILITY_AUTH_SECURE_COOKIE=false\n'
+          } | ssh -i ~/.ssh/mobility_pulse "$VPS_USER@$VPS_HOST" '
+            set -e
+            cd /opt/mobility-pulse
+            umask 077
+            temporary_env=$(mktemp)
+            grep -Ev "^MOBILITY_AUTH_(USERNAME|PASSWORD|SECRET|SECURE_COOKIE)=" .env > "$temporary_env" || true
+            cat >> "$temporary_env"
+            mv "$temporary_env" .env
+          '
       - name: Deploy develop
         env:
           VPS_HOST: ${{ secrets.VPS_HOST }}

@@ -17,6 +17,7 @@ describe("static authentication", () => {
     delete process.env.MOBILITY_AUTH_USERNAME;
     delete process.env.MOBILITY_AUTH_PASSWORD;
     delete process.env.MOBILITY_AUTH_SECRET;
+    delete process.env.MOBILITY_AUTH_SECURE_COOKIE;
   });
 
   it("accepts only the configured credentials", () => {
