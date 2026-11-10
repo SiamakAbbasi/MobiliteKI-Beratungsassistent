@@ -65,6 +65,28 @@ jobs:
             cat >> "$temporary_env"
             mv "$temporary_env" .env
           '
+      - name: Configure Lina agent
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+          LANGDOCK_LINA_API_KEY: ${{ secrets.LANGDOCK_LINA_API_KEY }}
+          LANGDOCK_LINA_AGENT_ID: ${{ secrets.LANGDOCK_LINA_AGENT_ID }}
+        run: |
+          test -n "$LANGDOCK_LINA_API_KEY"
+          test -n "$LANGDOCK_LINA_AGENT_ID"
+          {
+            printf 'LANGDOCK_LINA_API_KEY=%s\n' "$LANGDOCK_LINA_API_KEY"
+            printf 'LANGDOCK_LINA_AGENT_ID=%s\n' "$LANGDOCK_LINA_AGENT_ID"
+            printf 'LANGDOCK_LINA_MAX_STEPS=4\n'
+          } | ssh -i ~/.ssh/mobility_pulse "$VPS_USER@$VPS_HOST" '
+            set -e
+            cd /opt/mobility-pulse
+            umask 077
+            temporary_env=$(mktemp)
+            grep -Ev "^LANGDOCK_LINA_(API_KEY|AGENT_ID|MAX_STEPS)=" .env > "$temporary_env" || true
+            cat >> "$temporary_env"
+            mv "$temporary_env" .env
+          '
       - name: Deploy develop
         env:
           VPS_HOST: ${{ secrets.VPS_HOST }}
