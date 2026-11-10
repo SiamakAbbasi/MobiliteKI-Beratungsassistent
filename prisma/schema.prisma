@@ -136,6 +136,7 @@ model AdvisorReport {
   profileVersion String
   promptVersion String
   model String
+  provider String @default("STANDARD")
   status String @default("PENDING")
   startedAt DateTime?
   completedAt DateTime?
@@ -160,7 +161,7 @@ model AdvisorReport {
   updatedAt DateTime @updatedAt
   messages AdvisorMessage[]
 
-  @@index([itemId, status])
+  @@index([itemId, provider, status])
   @@index([status, createdAt])
 }
 

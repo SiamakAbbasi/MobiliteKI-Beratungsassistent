@@ -46,6 +46,7 @@ import {
 import GermanyMap from "./germany-map";
 import ProductGuide from "./product-guide";
 import LogoutButton from "./logout-button";
+import AdvisorProviderButton from "./advisor-provider-button";
 import { consultationAction } from "@/lib/advisor-status";
 import {
   categoryContext,
@@ -863,14 +864,7 @@ function DiscoveryList({
                 <ExternalLink />
                 Quelle anzeigen
               </a>
-              <a
-                className={`advisor-button ${advisor.tone}`}
-                href={`/news/${d.item.id}/advisor`}
-                onClick={(e) => e.stopPropagation()}
-              >
-                <Sparkles />
-                {advisor.label}
-              </a>
+              <AdvisorProviderButton articleId={d.item.id} label={advisor.label} className={`advisor-button ${advisor.tone}`}/>
             </footer>
           </article>
         );
@@ -1072,13 +1066,7 @@ function TransportNewsPage({ query }: { query: string }) {
                       .filter(Boolean)
                       .join(" · ") || "Geografische Zuordnung fehlt"}
                   </span>
-                  <a
-                    className={`advisor-button ${advisor.tone}`}
-                    href={`/news/${item.id}/advisor`}
-                  >
-                    <Sparkles />
-                    {advisor.label}
-                  </a>
+                  <AdvisorProviderButton articleId={item.id} label={advisor.label} className={`advisor-button ${advisor.tone}`}/>
                   <a href={item.canonicalUrl} target="_blank" rel="noreferrer">
                     <ExternalLink />
                     Originalquelle
@@ -1138,6 +1126,7 @@ function TransportNewsPage({ query }: { query: string }) {
 type ConsultationListItem = {
   id: string;
   itemId: string;
+  provider: "LINA" | "STANDARD";
   title: string;
   publisher: string;
   articlePublishedAt: string;
@@ -1254,6 +1243,7 @@ function ConsultationsPage() {
               <article className="consultation-item" key={item.id}>
                 <div className="consultation-main">
                   <div className="consultation-topline">
+                    <span>{item.provider==="LINA"?"Lina":"Standard AI"}</span>
                     <span
                       className={`consultation-status ${item.status.toLowerCase()}`}
                     >
@@ -1293,7 +1283,7 @@ function ConsultationsPage() {
                 </div>
                 <a
                   className="primary consultation-open"
-                  href={`/news/${item.itemId}/advisor`}
+                  href={`/news/${item.itemId}/advisor?provider=${String(item.provider||"STANDARD").toLowerCase()}`}
                 >
                   {action}
                   <ChevronRight />
@@ -2070,15 +2060,7 @@ function Detail({ d, close }: { d: Discovery; close: () => void }) {
                 {reference.source.name}
               </a>
             ))}
-            <a
-              className={`advisor-button ${advisorComplete ? "saved" : "new"}`}
-              href={`/news/${d.item.id}/advisor`}
-            >
-              <Sparkles />
-              {advisorComplete
-                ? "Beratungsverlauf öffnen"
-                : "Beratungsassistent"}
-            </a>
+            <AdvisorProviderButton articleId={d.item.id} className={`advisor-button ${advisorComplete ? "saved" : "new"}`} label={advisorComplete?"Beratungsverlauf öffnen":"Beratungsassistent"}/>
           </div>
         </section>
       </aside>

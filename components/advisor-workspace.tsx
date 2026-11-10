@@ -93,7 +93,7 @@ const nav = [
   { href: "/?view=settings", label: "Einstellungen", icon: Settings },
 ];
 
-export default function AdvisorWorkspace({ article }: { article: Article }) {
+export default function AdvisorWorkspace({ article,provider,startRequested }: { article: Article;provider:"LINA"|"STANDARD";startRequested:boolean }) {
   const [report, setReport] = useState<Report | null>(null),
     [status, setStatus] = useState("NOT_STARTED"),
     [error, setError] = useState(""),
@@ -108,7 +108,7 @@ export default function AdvisorWorkspace({ article }: { article: Article }) {
     let active = true,
       timer: ReturnType<typeof setInterval>;
     const poll = async () => {
-      const r = await fetch(`/api/advisor/${article.id}`, {
+      const r = await fetch(`/api/advisor/${article.id}?provider=${provider.toLowerCase()}`, {
           cache: "no-store",
         }),
         j = await r.json();
@@ -124,11 +124,11 @@ export default function AdvisorWorkspace({ article }: { article: Article }) {
         setMessages(j.report.messages || []);
         return;
       }
-      if (j.status === "NOT_STARTED") {
+      if (j.status === "NOT_STARTED"&&startRequested) {
         const start = await fetch(`/api/advisor/${article.id}`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ action: "start" }),
+            body: JSON.stringify({ action: "start",provider }),
           }),
           s = await start.json();
         if (!start.ok) setError(s.error);
@@ -145,14 +145,19 @@ export default function AdvisorWorkspace({ article }: { article: Article }) {
       clearInterval(timer);
       clearInterval(clock);
     };
-  }, [article.id]);
+  }, [article.id,provider,startRequested]);
+  const startAnalysis=async()=>{
+    setError("");setElapsed(0);
+    const r=await fetch(`/api/advisor/${article.id}`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"start",provider})}),j=await r.json();
+    if(!r.ok)setError(j.error);else setStatus(j.status);
+  };
   const retry = async () => {
     setError("");
     setElapsed(0);
     const r = await fetch(`/api/advisor/${article.id}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "retry" }),
+        body: JSON.stringify({ action: "retry",provider }),
       }),
       j = await r.json();
     if (!r.ok) setError(j.error);
@@ -168,7 +173,7 @@ export default function AdvisorWorkspace({ article }: { article: Article }) {
     const r = await fetch(`/api/advisor/${article.id}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "chat", question: q }),
+        body: JSON.stringify({ action: "chat", question: q,provider }),
       }),
       j = await r.json();
     setSending(false);
@@ -218,7 +223,7 @@ export default function AdvisorWorkspace({ article }: { article: Article }) {
           <section className="advisor-compact-header">
             <div className="advisor-kicker">
               <Sparkles />
-              KI-Beratungsassistent
+              {provider==="LINA"?"Lina – mobilité Recherche-Agent":"Standard AI – GPT-5 mini"}
             </div>
             <h1>{article.title}</h1>
             <div className="advisor-article-meta">
@@ -262,6 +267,13 @@ export default function AdvisorWorkspace({ article }: { article: Article }) {
                 <ArrowLeft />
                 Zurück zu Nachrichten
               </Link>
+            </section>
+          ) : status==="NOT_STARTED" ? (
+            <section className="advisor-state">
+              <Sparkles />
+              <h2>Analyse ist noch nicht gestartet</h2>
+              <p>Erst mit Ihrer ausdrücklichen Bestätigung wird eine kostenpflichtige KI-Anfrage ausgelöst.</p>
+              <button onClick={startAnalysis}>Analyse starten</button>
             </section>
           ) : !a ? (
             <Loading elapsed={elapsed} status={status} />

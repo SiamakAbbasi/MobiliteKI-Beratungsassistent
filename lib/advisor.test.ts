@@ -18,6 +18,10 @@ describe("senior advisor safety and caching", () => {
       advisorCacheKey({ id: "a", contentHash: "two" }),
     );
   });
+  it("keeps provider-specific reports in separate cache entries",()=>{
+    const item={id:"a",contentHash:"same"};
+    expect(advisorCacheKey(item,"LINA")).not.toBe(advisorCacheKey(item,"STANDARD"));
+  });
   it("delimits prompt injection as untrusted article content", () => {
     const context = buildAdvisorArticleContext({
       title: "Test",

@@ -2356,6 +2356,18 @@ td:first-child a {
   background: #ffe9e9 !important;
   color: #aa2929 !important;
 }
+.advisor-button{display:inline-flex;align-items:center;gap:5px;border:0;font:inherit;cursor:pointer}
+
+.provider-modal-backdrop{position:fixed;inset:0;z-index:1200;display:grid;place-items:center;padding:24px;background:rgba(15,23,42,.58);backdrop-filter:blur(3px)}
+.provider-modal{width:min(560px,100%);overflow:hidden;border:1px solid #dbe3f0;border-radius:20px;background:#fff;box-shadow:0 28px 80px rgba(15,23,42,.28);color:#17213a;text-align:left}
+.provider-modal>header{display:flex;align-items:flex-start;justify-content:space-between;padding:26px 26px 20px;border-bottom:1px solid #e8edf5}
+.provider-modal>header>div{display:flex;gap:14px}.provider-modal h2{margin:0 0 5px;font-size:1.35rem}.provider-modal p{margin:0;color:#68748e;font-size:.92rem}
+.provider-modal-icon{display:grid;width:42px;height:42px;flex:0 0 42px;place-items:center;border-radius:12px;background:#eeeaff;color:#6251d8}.provider-modal-icon svg{width:21px}
+.provider-modal-close{display:grid;width:36px;height:36px;place-items:center;border:0;border-radius:10px;background:transparent;color:#68748e;cursor:pointer}.provider-modal-close:hover{background:#f2f4f8}.provider-modal-close svg{width:19px}
+.provider-options{display:grid;gap:12px;padding:22px 26px}.provider-options label{display:flex;gap:13px;align-items:flex-start;padding:17px;border:1px solid #dbe3f0;border-radius:14px;cursor:pointer;transition:.15s ease}.provider-options label:hover,.provider-options label.selected{border-color:#6a55df;background:#f7f5ff;box-shadow:0 0 0 2px rgba(106,85,223,.08)}
+.provider-options input{margin-top:3px;accent-color:#6047d8}.provider-options span{display:grid;gap:5px}.provider-options b{font-size:.98rem}.provider-options small{color:#68748e;line-height:1.45}
+.provider-modal>footer{display:flex;justify-content:flex-end;gap:10px;padding:18px 26px 24px}.provider-modal>footer button{display:inline-flex;align-items:center;gap:8px;min-height:42px;padding:0 18px;border-radius:10px;font-weight:700;cursor:pointer}.provider-modal>footer .secondary{border:1px solid #d7deea;background:#fff;color:#34405b}.provider-modal>footer .primary{border:1px solid #6047d8;background:#6047d8;color:#fff}.provider-modal>footer svg{width:17px}
+@media(max-width:600px){.provider-modal-backdrop{padding:12px}.provider-modal>header,.provider-options{padding-left:18px;padding-right:18px}.provider-modal>footer{padding:16px 18px 20px}.provider-modal>footer button{flex:1;justify-content:center}}
 .advisor-page {
   margin: 0;
   min-height: 100vh;

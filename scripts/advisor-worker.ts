@@ -1,5 +1,6 @@
 import { db } from "../lib/db";
 import { generateAdvisorReport } from "../lib/advisor";
+import { normalizeAdvisorProvider } from "../lib/advisor";
 
 const POLL_MS = 2_000;
 let stopping = false;
@@ -25,7 +26,7 @@ async function work() {
       continue;
     }
     try {
-      await generateAdvisorReport(job.itemId);
+      await generateAdvisorReport(job.itemId,normalizeAdvisorProvider(job.provider));
     } catch (error) {
       console.error(
         `[advisor-worker] ${job.id}:`,

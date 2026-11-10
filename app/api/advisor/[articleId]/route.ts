@@ -6,6 +6,8 @@ import {
   enqueueAdvisorReport,
   generateAdvisorReport,
   getCanonicalAdvisorReport,
+  normalizeAdvisorProvider,
+  advisorProviderModel,
 } from "@/lib/advisor";
 import { COMPANY_PROFILE_VERSION } from "@/lib/company-profiles";
 
@@ -17,23 +19,24 @@ function serialize(report: any) {
   };
 }
 export async function GET(
-  _request: NextRequest,
+  request: NextRequest,
   context: RouteContext<"/api/advisor/[articleId]">,
 ) {
   const { articleId } = await context.params;
+  const provider=normalizeAdvisorProvider(request.nextUrl.searchParams.get("provider"));
   const item = await db.item.findUnique({
     where: { id: articleId },
     include: { source: true },
   });
   if (!item)
     return Response.json({ error: "Artikel nicht gefunden" }, { status: 404 });
-  const report = await getCanonicalAdvisorReport(articleId),
+  const report = await getCanonicalAdvisorReport(articleId,provider),
     updateAvailable = Boolean(
       report &&
       (report.contentHash !== item.contentHash ||
         report.profileVersion !== COMPANY_PROFILE_VERSION ||
         report.promptVersion !== ADVISOR_PROMPT_VERSION ||
-        report.model !== (process.env.LANGDOCK_MODEL || "unconfigured")),
+        report.model !== advisorProviderModel(provider)),
     );
   return Response.json({
     article: item,
@@ -41,6 +44,7 @@ export async function GET(
     report: report?.status === "COMPLETED" ? serialize(report) : null,
     status: report?.status || "NOT_STARTED",
     error: report?.error,
+    provider,
     updateAvailable,
   });
 }
@@ -51,12 +55,13 @@ export async function POST(
   const { articleId } = await context.params;
   try {
     const body = await request.json().catch(() => ({}));
+    const provider=normalizeAdvisorProvider(body.provider);
     if (body.action === "chat")
       return Response.json(
-        await askAdvisor(articleId, String(body.question || "")),
+        await askAdvisor(articleId, String(body.question || ""),provider),
       );
     if (body.action === "retry") {
-      const report = await getCanonicalAdvisorReport(articleId);
+      const report = await getCanonicalAdvisorReport(articleId,provider);
       if (report && ["FAILED", "DEFERRED"].includes(report.status)) {
         if (report.attemptCount >= report.maxAttempts)
           throw new Error(
@@ -73,16 +78,16 @@ export async function POST(
         });
       }
     }
-    const job = await enqueueAdvisorReport(articleId);
+    const job = await enqueueAdvisorReport(articleId,provider);
     if (job.status === "PENDING")
-      void generateAdvisorReport(articleId).catch((error) =>
+      void generateAdvisorReport(articleId,provider).catch((error) =>
         console.error(
           `[advisor-api] ${articleId}:`,
           error instanceof Error ? error.message : error,
         ),
       );
     return Response.json(
-      { job: serialize(job), status: job.status },
+      { job: serialize(job), status: job.status,provider },
       { status: job.status === "COMPLETED" ? 200 : 202 },
     );
   } catch (error) {

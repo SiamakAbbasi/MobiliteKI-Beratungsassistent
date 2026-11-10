@@ -14,6 +14,8 @@ A functional Next.js MVP for collecting, analysing and visualising public German
 
 The server uses Langdock's provider-compatible OpenAI Chat Completions endpoint (`/openai/eu/v1/chat/completions`) with bearer authentication. Set `LANGDOCK_API_KEY`, `LANGDOCK_MODEL`, and optionally a deployment-specific regional `LANGDOCK_BASE_URL`. Responses are parsed and validated with Zod. Without credentials, collection and source management continue while AI analysis is skipped.
 
+The Beratungsassistent also supports the Lina research agent through Langdock's Agents API. Configure `LANGDOCK_LINA_API_KEY` and `LANGDOCK_LINA_AGENT_ID` only on the server. The Lina key is never sent to the browser. Standard AI and Lina reports, cache entries, follow-up messages, failures, and retries are stored separately by provider. `LANGDOCK_LINA_MAX_STEPS` limits agent tool steps per request and defaults to `4`.
+
 ## Data integrity
 
 - The seed adds source definitions only—no fabricated discoveries or KPIs.

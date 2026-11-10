@@ -4,10 +4,20 @@ import {
   COMPANY_PROFILE_VERSION,
   companyProfiles,
 } from "./company-profiles";
-import { callLangdock, type LangdockMessage } from "./langdock";
+import { callLangdock, callLinaAgent, type LangdockMessage } from "./langdock";
 import { hash } from "./utils";
 
 export const ADVISOR_PROMPT_VERSION = "senior-advisor-2026-11-v5";
+export const ADVISOR_PROVIDERS = ["LINA", "STANDARD"] as const;
+export type AdvisorProvider = (typeof ADVISOR_PROVIDERS)[number];
+export function normalizeAdvisorProvider(value:unknown):AdvisorProvider{
+  return String(value||"").toUpperCase()==="LINA"?"LINA":"STANDARD";
+}
+export function advisorProviderModel(provider:AdvisorProvider){
+  return provider==="LINA"
+    ? `lina-agent:${process.env.LANGDOCK_LINA_AGENT_ID||"unconfigured"}`
+    : process.env.LANGDOCK_MODEL||"unconfigured";
+}
 const rubricProperties = {
   articleSpecificReasoning: { type: "integer", minimum: 0, maximum: 5 },
   evidenceGrounding: { type: "integer", minimum: 0, maximum: 5 },
@@ -231,14 +241,15 @@ export function enforceSourceFacts(report: any, sourceText: string) {
   return report;
 }
 
-export function advisorCacheKey(item: { id: string; contentHash: string }) {
+export function advisorCacheKey(item: { id: string; contentHash: string },provider:AdvisorProvider="STANDARD") {
   return hash(
     [
       item.id,
       item.contentHash,
       COMPANY_PROFILE_VERSION,
       ADVISOR_PROMPT_VERSION,
-      process.env.LANGDOCK_MODEL || "unconfigured",
+      provider,
+      advisorProviderModel(provider),
     ].join("|"),
   );
 }
@@ -246,20 +257,21 @@ export const advisorReportOrder = [
   { updatedAt: "desc" as const },
   { createdAt: "desc" as const },
 ];
-export async function getCanonicalAdvisorReport(itemId: string) {
+export async function getCanonicalAdvisorReport(itemId: string,provider:AdvisorProvider="STANDARD") {
   return db.advisorReport.findFirst({
-    where: { itemId },
+    where: { itemId,provider },
     orderBy: advisorReportOrder,
     include: { messages: { orderBy: { createdAt: "asc" } } },
   });
 }
-export async function getAdvisorContext(itemId: string) {
+export async function getAdvisorContext(itemId: string,provider:AdvisorProvider="STANDARD") {
   return db.item.findUnique({
     where: { id: itemId },
     include: {
       source: true,
       discovery: { include: { companyMatches: true } },
       advisorReports: {
+        where:{provider},
         orderBy: advisorReportOrder,
         take: 1,
         include: { messages: { orderBy: { createdAt: "asc" } } },
@@ -268,14 +280,14 @@ export async function getAdvisorContext(itemId: string) {
   });
 }
 
-export async function enqueueAdvisorReport(itemId: string) {
+export async function enqueueAdvisorReport(itemId: string,provider:AdvisorProvider="STANDARD") {
   const item = await db.item.findUnique({ where: { id: itemId } });
   if (!item) throw new Error("Artikel nicht gefunden");
   if (!item.content.trim())
     throw new Error("Der Artikel enthält keinen analysierbaren Inhalt");
-  const existing = await getCanonicalAdvisorReport(itemId);
+  const existing = await getCanonicalAdvisorReport(itemId,provider);
   if (existing) return existing;
-  const cacheKey = advisorCacheKey(item);
+  const cacheKey = advisorCacheKey(item,provider);
   try {
     return await db.advisorReport.create({
       data: {
@@ -284,7 +296,8 @@ export async function enqueueAdvisorReport(itemId: string) {
         contentHash: item.contentHash,
         profileVersion: COMPANY_PROFILE_VERSION,
         promptVersion: ADVISOR_PROMPT_VERSION,
-        model: process.env.LANGDOCK_MODEL || "unconfigured",
+        model: advisorProviderModel(provider),
+        provider,
         status: "PENDING",
       },
       include: { messages: true },
@@ -316,7 +329,7 @@ export function buildAdvisorArticleContext(item: {
   return `SOURCE METADATA (trusted database fields)\nTitle: ${item.title}\nPublisher: ${item.source.name}\nPublished: ${item.publishedAt.toISOString()}\nRegion: ${[item.city, item.district, item.federalState].filter(Boolean).join(", ") || "unassigned"}\nSector: ${item.newsCategory || "unclassified"}\nOriginal URL: ${item.canonicalUrl}\n\nBEGIN UNTRUSTED ARTICLE CONTENT\n${item.content.slice(0, 14000)}\nEND UNTRUSTED ARTICLE CONTENT`;
 }
 
-export async function generateAdvisorReport(itemId: string) {
+export async function generateAdvisorReport(itemId: string,provider:AdvisorProvider="STANDARD") {
   const item = await db.item.findUnique({
     where: { id: itemId },
     include: { source: true, discovery: { include: { companyMatches: true } } },
@@ -324,14 +337,14 @@ export async function generateAdvisorReport(itemId: string) {
   if (!item) throw new Error("Artikel nicht gefunden");
   if (!item.content.trim())
     throw new Error("Der Artikel enthält keinen analysierbaren Inhalt");
-  const canonical = await getCanonicalAdvisorReport(itemId);
+  const canonical = await getCanonicalAdvisorReport(itemId,provider);
   if (canonical?.status === "COMPLETED") return canonical;
   if (canonical?.status === "RUNNING") return canonical;
   if (canonical && !["PENDING"].includes(canonical.status))
     throw new Error(
       "Die vorhandene Analyse muss ausdrücklich erneut gestartet werden",
     );
-  const cacheKey = advisorCacheKey(item);
+  const cacheKey = advisorCacheKey(item,provider);
   let report;
   if (canonical) {
     const startedAt = new Date();
@@ -350,7 +363,7 @@ export async function generateAdvisorReport(itemId: string) {
       },
     });
     if (claimed.count === 0)
-      return (await getCanonicalAdvisorReport(itemId)) || canonical;
+      return (await getCanonicalAdvisorReport(itemId,provider)) || canonical;
     report = await db.advisorReport.findUniqueOrThrow({
       where: { id: canonical.id },
     });
@@ -363,7 +376,8 @@ export async function generateAdvisorReport(itemId: string) {
           contentHash: item.contentHash,
           profileVersion: COMPANY_PROFILE_VERSION,
           promptVersion: ADVISOR_PROMPT_VERSION,
-          model: process.env.LANGDOCK_MODEL || "unconfigured",
+          model: advisorProviderModel(provider),
+          provider,
           status: "RUNNING",
           startedAt: new Date(),
           leaseExpiresAt: new Date(Date.now() + 15 * 60_000),
@@ -371,13 +385,21 @@ export async function generateAdvisorReport(itemId: string) {
         },
       });
     } catch {
-      return (await getCanonicalAdvisorReport(itemId))!;
+      return (await getCanonicalAdvisorReport(itemId,provider))!;
     }
   }
   try {
     const article = buildAdvisorArticleContext(item);
-    let result = await callLangdock({
-      maxTokens: Number(process.env.ADVISOR_MAX_OUTPUT_TOKENS || 7000),
+    const maxTokens=Number(process.env.ADVISOR_MAX_OUTPUT_TOKENS || 7000),messages:LangdockMessage[]=[
+      { role: "system", content: buildAdvisorSystemPrompt() },
+      { role: "user", content: article },
+    ];
+    const result = provider==="LINA"?await callLinaAgent({
+      maxTokens,
+      outputSchema:reportSchema,
+      messages,
+    }):await callLangdock({
+      maxTokens,
       responseFormat: {
         type: "json_schema",
         json_schema: {
@@ -386,10 +408,7 @@ export async function generateAdvisorReport(itemId: string) {
           schema: reportSchema,
         },
       },
-      messages: [
-        { role: "system", content: buildAdvisorSystemPrompt() },
-        { role: "user", content: article },
-      ],
+      messages,
     });
     const parsed = enforceSourceFacts(
         JSON.parse(result.content),
@@ -442,10 +461,10 @@ export async function generateAdvisorReport(itemId: string) {
   }
 }
 
-export async function askAdvisor(itemId: string, question: string) {
+export async function askAdvisor(itemId: string, question: string,provider:AdvisorProvider="STANDARD") {
   if (!question.trim()) throw new Error("Eine Frage ist erforderlich");
   if (question.length > 3000) throw new Error("Die Frage ist zu lang");
-  const item = await getAdvisorContext(itemId),
+  const item = await getAdvisorContext(itemId,provider),
     report = item?.advisorReports[0];
   if (!item || !report?.reportJson)
     throw new Error("Erstellen Sie zuerst die Beratungsanalyse");
@@ -467,10 +486,10 @@ export async function askAdvisor(itemId: string, question: string) {
   await db.advisorMessage.create({
     data: { reportId: report.id, role: "user", content: question.trim() },
   });
-  const result = await callLangdock({
-    messages,
-    maxTokens: Number(process.env.ADVISOR_CHAT_MAX_OUTPUT_TOKENS || 1500),
-  });
+  const maxTokens=Number(process.env.ADVISOR_CHAT_MAX_OUTPUT_TOKENS || 1500);
+  const result = provider==="LINA"
+    ? await callLinaAgent({messages,maxTokens})
+    : await callLangdock({messages,maxTokens});
   await db.advisorMessage.create({
     data: {
       reportId: report.id,
